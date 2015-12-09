@@ -14,6 +14,7 @@
 		2CBE1B6A1C17A10500CECCE4 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 2CBE1B681C17A10500CECCE4 /* LaunchScreen.storyboard */; };
 		2CBE1B751C17A10500CECCE4 /* PollingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CBE1B741C17A10500CECCE4 /* PollingTests.swift */; };
 		2CBE1B801C17A10500CECCE4 /* PollingUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CBE1B7F1C17A10500CECCE4 /* PollingUITests.swift */; };
+		2CBE1B8E1C17A25C00CECCE4 /* MultipeerConnectivity.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2CBE1B8D1C17A25C00CECCE4 /* MultipeerConnectivity.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -47,6 +48,7 @@
 		2CBE1B7B1C17A10500CECCE4 /* PollingUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PollingUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		2CBE1B7F1C17A10500CECCE4 /* PollingUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PollingUITests.swift; sourceTree = "<group>"; };
 		2CBE1B811C17A10500CECCE4 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		2CBE1B8D1C17A25C00CECCE4 /* MultipeerConnectivity.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MultipeerConnectivity.framework; path = System/Library/Frameworks/MultipeerConnectivity.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -54,6 +56,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2CBE1B8E1C17A25C00CECCE4 /* MultipeerConnectivity.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -77,6 +80,7 @@
 		2CBE1B531C17A10500CECCE4 = {
 			isa = PBXGroup;
 			children = (
+				2CBE1B8D1C17A25C00CECCE4 /* MultipeerConnectivity.framework */,
 				2CBE1B5E1C17A10500CECCE4 /* Polling */,
 				2CBE1B731C17A10500CECCE4 /* PollingTests */,
 				2CBE1B7E1C17A10500CECCE4 /* PollingUITests */,
