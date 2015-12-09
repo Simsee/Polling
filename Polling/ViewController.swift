@@ -21,9 +21,14 @@ MCSessionDelegate {
     
     @IBOutlet var chatView: UITextView!
     @IBOutlet var messageField: UITextField!
+    @IBOutlet weak var numTriggeredDevices: UILabel!
     
     var triggered = false
     var triggeredDevices: [MCPeerID]!
+    
+    let ARE_YOU_TRIGGERED = "I am triggered. Are you guys?"
+    let NOT_TRIGGERED = "No, I am not triggered."
+    let AM_TRIGGERED = "Yes, I am triggered too."
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -40,23 +45,29 @@ MCSessionDelegate {
         
         self.assistant = MCAdvertiserAssistant(serviceType:serviceType,
             discoveryInfo:nil, session:self.session)
+        
+        // Start advertising
+        self.assistant.start()
     }
     
     // Called when trigger occurs
     @IBAction func triggerEvent(sender: UIButton) {
-        self.assistant.stop()
-        // Start advertising
-        self.assistant.start()
-        sendMessageToPeers("YO! Did something happen?", peers: self.session.connectedPeers)
+        if (!self.triggeredDevices.contains(self.peerID)){
+            self.triggeredDevices.append(self.peerID)
+        }
+        self.numTriggeredDevices.text = String(self.triggeredDevices.count)
+        sendMessageToPeers(self.ARE_YOU_TRIGGERED, peers: self.session.connectedPeers)
     }
     
     func sendMessageToPeers(msg: NSString, peers: [MCPeerID]){
         do {
             try self.session.sendData(msg.dataUsingEncoding(NSUTF8StringEncoding)!, toPeers: peers, withMode: MCSessionSendDataMode.Reliable)
         } catch {
-            self.chatView.text = self.chatView.text + "Could not send message to peer(s)"
+            self.chatView.text = self.chatView.text + "Failed to send message!"
         }
+        updateChat(msg as String, fromPeer: self.peerID)
     }
+    
     
     @IBAction func sendChat(sender: UIButton, msg : NSString) {
         // Bundle up the text in the message field, and send it off to all
@@ -69,7 +80,7 @@ MCSessionDelegate {
              try self.session.sendData(msg!, toPeers: self.session.connectedPeers,
                 withMode: MCSessionSendDataMode.Unreliable)
         } catch {
-            self.chatView.text = self.chatView.text + "Error sending chat message (are you connected to any peers?)\n"
+            self.chatView.text = self.chatView.text + "Failed to send message!"
         }
         
         self.updateChat(self.messageField.text!, fromPeer: self.peerID)
@@ -128,29 +139,34 @@ MCSessionDelegate {
                 
                 self.updateChat(msg as! String, fromPeer: peerID)
                 
-                if (msg == "YO! Did something happen?"){
+                if (msg == self.ARE_YOU_TRIGGERED){
                     if (self.triggered){
-                        self.sendMessageToPeers("YO! Something did happen.", peers: [peerID])
+                        self.sendMessageToPeers(self.AM_TRIGGERED, peers: [peerID])
+                        if (!self.triggeredDevices.contains(peerID)){
+                            self.triggeredDevices.append(peerID)
+                        }
                     }
                     else {
-                        self.sendMessageToPeers("YO! Nothing happened.", peers: [peerID])
+                        self.sendMessageToPeers(self.NOT_TRIGGERED, peers: [peerID])
                     }
                 }
                     
-                else if (msg == "YO! Something did happen."){
+                else if (msg == self.AM_TRIGGERED){
                     if (!self.triggeredDevices.contains(peerID)){
                         self.triggeredDevices.append(peerID)
                     }
                 }
                 
-                else if (msg == "YO! Nothing happened."){
+                else if (msg == self.NOT_TRIGGERED){
                     self.triggered = false;
-                    self.assistant.stop()
                     if (self.triggeredDevices.contains(peerID)){
                         self.triggeredDevices.removeAtIndex(self.triggeredDevices.indexOf(peerID)!)
                     }
+                    if (self.triggeredDevices.contains(self.peerID)){
+                        self.triggeredDevices.removeAtIndex(self.triggeredDevices.indexOf(self.peerID)!)
+                    }
                 }
-
+                self.numTriggeredDevices.text = String(self.triggeredDevices.count)
             }
     }
     
@@ -179,17 +195,14 @@ MCSessionDelegate {
     func session(session: MCSession,
         peer peerID: MCPeerID,
         didChangeState state: MCSessionState){
-            self.session.connectPeer(peerID, withNearbyConnectionData: ("YO! Let's connect." as NSString).dataUsingEncoding(NSUTF8StringEncoding)!)
+            self.session.connectPeer(peerID, withNearbyConnectionData: ("Let's connect." as NSString).dataUsingEncoding(NSUTF8StringEncoding)!)
             switch state {
             case MCSessionState.Connected:
-                print("Connected: \(peerID.displayName)")
-                self.chatView.text = self.chatView.text + "Connected: \(peerID.displayName)"
+                self.chatView.text = self.chatView.text + "\(peerID.displayName) connected"
             case MCSessionState.Connecting:
-                print("Connecting: \(peerID.displayName)")
-                self.chatView.text = self.chatView.text + "Connecting: \(peerID.displayName)"
+                self.chatView.text = self.chatView.text + "\(peerID.displayName) connecting"
             case MCSessionState.NotConnected:
-                print("Not Connected: \(peerID.displayName)")
-                self.chatView.text = self.chatView.text + "Not Connected: \(peerID.displayName)"
+                self.chatView.text = self.chatView.text + "\(peerID.displayName) not connected"
             }
     }
 }
