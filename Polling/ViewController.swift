@@ -12,15 +12,18 @@ import MultipeerConnectivity
 class ViewController: UIViewController, MCBrowserViewControllerDelegate,
 MCSessionDelegate {
     
-    let serviceType = "Polling"
+    let serviceType = "polling"
     
     var browser : MCBrowserViewController!
     var assistant : MCAdvertiserAssistant!
     var session : MCSession!
-    var peerID: MCPeerID!
+    var peerID : MCPeerID!
     
     @IBOutlet var chatView: UITextView!
     @IBOutlet var messageField: UITextField!
+    
+    var triggered = false
+    var triggeredDevices: [MCPeerID]!
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -37,12 +40,25 @@ MCSessionDelegate {
         
         self.assistant = MCAdvertiserAssistant(serviceType:serviceType,
             discoveryInfo:nil, session:self.session)
-        
-        // tell the assistant to start advertising our fabulous chat
-        self.assistant.start()
     }
     
-    @IBAction func sendChat(sender: UIButton) {
+    // Called when trigger occurs
+    @IBAction func triggerEvent(sender: UIButton) {
+        self.assistant.stop()
+        // Start advertising
+        self.assistant.start()
+        sendMessageToPeers("YO! Did something happen?", peers: self.session.connectedPeers)
+    }
+    
+    func sendMessageToPeers(msg: NSString, peers: [MCPeerID]){
+        do {
+            try self.session.sendData(msg.dataUsingEncoding(NSUTF8StringEncoding)!, toPeers: peers, withMode: MCSessionSendDataMode.Reliable)
+        } catch {
+            self.chatView.text = self.chatView.text + "Could not send message to peer(s)"
+        }
+    }
+    
+    @IBAction func sendChat(sender: UIButton, msg : NSString) {
         // Bundle up the text in the message field, and send it off to all
         // connected peers
         
@@ -53,7 +69,7 @@ MCSessionDelegate {
              try self.session.sendData(msg!, toPeers: self.session.connectedPeers,
                 withMode: MCSessionSendDataMode.Unreliable)
         } catch {
-            print("???")
+            self.chatView.text = self.chatView.text + "Error sending chat message (are you connected to any peers?)\n"
         }
         
         self.updateChat(self.messageField.text!, fromPeer: self.peerID)
@@ -104,13 +120,37 @@ MCSessionDelegate {
     func session(session: MCSession, didReceiveData data: NSData,
         fromPeer peerID: MCPeerID)  {
             // Called when a peer sends an NSData to us
-            
+        
             // This needs to run on the main queue
             dispatch_async(dispatch_get_main_queue()) {
                 
                 let msg = NSString(data: data, encoding: NSUTF8StringEncoding)
                 
                 self.updateChat(msg as! String, fromPeer: peerID)
+                
+                if (msg == "YO! Did something happen?"){
+                    if (self.triggered){
+                        self.sendMessageToPeers("YO! Something did happen.", peers: [peerID])
+                    }
+                    else {
+                        self.sendMessageToPeers("YO! Nothing happened.", peers: [peerID])
+                    }
+                }
+                    
+                else if (msg == "YO! Something did happen."){
+                    if (!self.triggeredDevices.contains(peerID)){
+                        self.triggeredDevices.append(peerID)
+                    }
+                }
+                
+                else if (msg == "YO! Nothing happened."){
+                    self.triggered = false;
+                    self.assistant.stop()
+                    if (self.triggeredDevices.contains(peerID)){
+                        self.triggeredDevices.removeAtIndex(self.triggeredDevices.indexOf(peerID)!)
+                    }
+                }
+
             }
     }
     
@@ -139,6 +179,17 @@ MCSessionDelegate {
     func session(session: MCSession,
         peer peerID: MCPeerID,
         didChangeState state: MCSessionState){
-            
+            self.session.connectPeer(peerID, withNearbyConnectionData: ("YO! Let's connect." as NSString).dataUsingEncoding(NSUTF8StringEncoding)!)
+            switch state {
+            case MCSessionState.Connected:
+                print("Connected: \(peerID.displayName)")
+                self.chatView.text = self.chatView.text + "Connected: \(peerID.displayName)"
+            case MCSessionState.Connecting:
+                print("Connecting: \(peerID.displayName)")
+                self.chatView.text = self.chatView.text + "Connecting: \(peerID.displayName)"
+            case MCSessionState.NotConnected:
+                print("Not Connected: \(peerID.displayName)")
+                self.chatView.text = self.chatView.text + "Not Connected: \(peerID.displayName)"
+            }
     }
 }
