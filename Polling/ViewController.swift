@@ -9,84 +9,85 @@
 import UIKit
 import MultipeerConnectivity
 
-class ViewController: UIViewController, MCBrowserViewControllerDelegate,
+class ViewController: UIViewController, MCNearbyServiceBrowserDelegate, MCNearbyServiceAdvertiserDelegate,
 MCSessionDelegate {
-    
     let serviceType = "polling"
     
-    var browser : MCBrowserViewController!
-    var assistant : MCAdvertiserAssistant!
+    var browser: MCNearbyServiceBrowser!
+    var advertiser: MCNearbyServiceAdvertiser!
     var session : MCSession!
     var peerID : MCPeerID!
     
+    var foundPeers = [MCPeerID]()
+
     @IBOutlet var chatView: UITextView!
     @IBOutlet var messageField: UITextField!
     @IBOutlet weak var numTriggeredDevices: UILabel!
     
     var triggered = false
+    var invitationHandler: ((Bool, MCSession)->Void)!
     var triggeredDevices: [MCPeerID]!
     
-    let ARE_YOU_TRIGGERED = "I am triggered. Are you guys?"
-    let NOT_TRIGGERED = "No, I am not triggered."
-    let AM_TRIGGERED = "Yes, I am triggered too."
+    let ARE_YOU_TRIGGERED = "I am triggered. Are you guys?\n"
+    let NO_MORE_TRIGGERED = "I am not triggered anymore.\n"
+    let NOT_TRIGGERED = "No, I am not triggered.\n"
+    let AM_TRIGGERED = "Yes, I am triggered too.\n"
     
     override func viewDidLoad() {
         super.viewDidLoad()
         
         self.peerID = MCPeerID(displayName: UIDevice.currentDevice().name)
+        
         self.session = MCSession(peer: peerID)
         self.session.delegate = self
         
-        // create the browser viewcontroller with a unique service name
-        self.browser = MCBrowserViewController(serviceType:serviceType,
-            session:self.session)
+        self.browser = MCNearbyServiceBrowser(peer: peerID, serviceType: serviceType)
+        self.browser.delegate = self
         
-        self.browser.delegate = self;
+        self.advertiser = MCNearbyServiceAdvertiser(peer: peerID, discoveryInfo: nil, serviceType: serviceType)
+        self.advertiser.delegate = self
         
-        self.assistant = MCAdvertiserAssistant(serviceType:serviceType,
-            discoveryInfo:nil, session:self.session)
-        
-        // Start advertising
-        self.assistant.start()
+        // Start advertising and browsing
+        self.advertiser.startAdvertisingPeer()
+        self.browser.startBrowsingForPeers()
     }
+    
     
     // Called when trigger occurs
     @IBAction func triggerEvent(sender: UIButton) {
-        if (!self.triggeredDevices.contains(self.peerID)){
+        triggered = !triggered
+        
+        if (!triggered && triggeredDevices != nil){
+            triggeredDevices.removeAtIndex(triggeredDevices.indexOf(self.peerID)!)
+        }
+        
+        if (self.triggeredDevices == nil && triggered){
+            self.triggeredDevices = [self.peerID]
+        }
+        else if (!self.triggeredDevices.contains(self.peerID) && triggered){
             self.triggeredDevices.append(self.peerID)
         }
+
         self.numTriggeredDevices.text = String(self.triggeredDevices.count)
-        sendMessageToPeers(self.ARE_YOU_TRIGGERED, peers: self.session.connectedPeers)
+        if (triggered){
+            sendMessageToPeers(self.ARE_YOU_TRIGGERED, peers: self.session.connectedPeers)
+        }
+        else {
+            sendMessageToPeers(self.NO_MORE_TRIGGERED, peers: self.session.connectedPeers)
+        }
     }
+
     
     func sendMessageToPeers(msg: NSString, peers: [MCPeerID]){
         do {
-            try self.session.sendData(msg.dataUsingEncoding(NSUTF8StringEncoding)!, toPeers: peers, withMode: MCSessionSendDataMode.Reliable)
+            try self.session.sendData(msg.dataUsingEncoding(NSUTF8StringEncoding)!, toPeers: peers, withMode: MCSessionSendDataMode.Unreliable)
         } catch {
-            self.chatView.text = self.chatView.text + "Failed to send message!"
+            self.chatView.text = self.chatView.text + "Failed to send message!\n"
         }
         updateChat(msg as String, fromPeer: self.peerID)
     }
     
     
-    @IBAction func sendChat(sender: UIButton, msg : NSString) {
-        // Bundle up the text in the message field, and send it off to all
-        // connected peers
-        
-        let msg = self.messageField.text!.dataUsingEncoding(NSUTF8StringEncoding,
-            allowLossyConversion: false)
-        
-        do {
-             try self.session.sendData(msg!, toPeers: self.session.connectedPeers,
-                withMode: MCSessionSendDataMode.Unreliable)
-        } catch {
-            self.chatView.text = self.chatView.text + "Failed to send message!"
-        }
-        
-        self.updateChat(self.messageField.text!, fromPeer: self.peerID)
-        
-        self.messageField.text = ""
-    }
     
     func updateChat(text : String, fromPeer peerID: MCPeerID) {
         // Appends some text to the chat view
@@ -108,24 +109,44 @@ MCSessionDelegate {
         
     }
     
-    @IBAction func showBrowser(sender: UIButton) {
-        // Show the browser view controller
-        self.presentViewController(self.browser, animated: true, completion: nil)
+    // Got invite
+    func advertiser(advertiser: MCNearbyServiceAdvertiser,
+        didReceiveInvitationFromPeer peerID: MCPeerID,
+        withContext context: NSData?,
+        invitationHandler: (Bool,
+        MCSession) -> Void){
+        self.invitationHandler = invitationHandler
+        self.invitationHandler(true, self.session)
     }
     
-    func browserViewControllerDidFinish(
-        browserViewController: MCBrowserViewController)  {
-            // Called when the browser view controller is dismissed (ie the Done
-            // button was tapped)
+    // Advertiser error
+    func advertiser(advertiser: MCNearbyServiceAdvertiser,
+        didNotStartAdvertisingPeer error: NSError){
             
-            self.dismissViewControllerAnimated(true, completion: nil)
     }
     
-    func browserViewControllerWasCancelled(
-        browserViewController: MCBrowserViewController)  {
-            // Called when the browser view controller is cancelled
-            
-            self.dismissViewControllerAnimated(true, completion: nil)
+    // Found peer
+    func browser(browser: MCNearbyServiceBrowser, foundPeer peerID: MCPeerID, withDiscoveryInfo info: [String : String]?) {
+        browser.invitePeer(peerID, toSession: session, withContext: nil, timeout: 10)
+        dispatch_async(dispatch_get_main_queue()) {
+            self.chatView.text = self.chatView.text + "\(peerID.displayName) connected\nAll peers: " +
+                String(self.session.connectedPeers) + "\n"
+        }
+    }
+    
+    // Lost peer
+    func browser(browser: MCNearbyServiceBrowser, lostPeer peerID: MCPeerID) {
+        for (index, aPeer) in foundPeers.enumerate(){
+            if aPeer == peerID {
+                foundPeers.removeAtIndex(index)
+                break
+            }
+        }
+    }
+    
+    // Browser error
+    func browser(browser: MCNearbyServiceBrowser, didNotStartBrowsingForPeers error: NSError) {
+        print(error.localizedDescription)
     }
     
     func session(session: MCSession, didReceiveData data: NSData,
@@ -139,15 +160,24 @@ MCSessionDelegate {
                 
                 self.updateChat(msg as! String, fromPeer: peerID)
                 
-                if (msg == self.ARE_YOU_TRIGGERED){
+                if (msg == self.NO_MORE_TRIGGERED){
+                    if (self.triggeredDevices.contains(peerID)){
+                        self.triggeredDevices.removeAtIndex(self.triggeredDevices.indexOf(peerID)!)
+                    }
+                }
+                
+                else if (msg == self.ARE_YOU_TRIGGERED){
                     if (self.triggered){
                         self.sendMessageToPeers(self.AM_TRIGGERED, peers: [peerID])
-                        if (!self.triggeredDevices.contains(peerID)){
-                            self.triggeredDevices.append(peerID)
-                        }
                     }
                     else {
                         self.sendMessageToPeers(self.NOT_TRIGGERED, peers: [peerID])
+                    }
+                    if (self.triggeredDevices != nil && !self.triggeredDevices.contains(peerID)){
+                        self.triggeredDevices.append(peerID)
+                    }
+                    if (self.triggeredDevices == nil){
+                        self.triggeredDevices = [peerID]
                     }
                 }
                     
@@ -158,15 +188,13 @@ MCSessionDelegate {
                 }
                 
                 else if (msg == self.NOT_TRIGGERED){
-                    self.triggered = false;
                     if (self.triggeredDevices.contains(peerID)){
                         self.triggeredDevices.removeAtIndex(self.triggeredDevices.indexOf(peerID)!)
                     }
-                    if (self.triggeredDevices.contains(self.peerID)){
-                        self.triggeredDevices.removeAtIndex(self.triggeredDevices.indexOf(self.peerID)!)
-                    }
                 }
-                self.numTriggeredDevices.text = String(self.triggeredDevices.count)
+                if (self.triggeredDevices != nil){
+                    self.numTriggeredDevices.text = String(self.triggeredDevices.count)
+                }
             }
     }
     
@@ -189,20 +217,18 @@ MCSessionDelegate {
         didReceiveStream stream: NSInputStream,
         withName streamName: String,
         fromPeer peerID: MCPeerID){
-            
     }
     
     func session(session: MCSession,
         peer peerID: MCPeerID,
         didChangeState state: MCSessionState){
-            self.session.connectPeer(peerID, withNearbyConnectionData: ("Let's connect." as NSString).dataUsingEncoding(NSUTF8StringEncoding)!)
             switch state {
-            case MCSessionState.Connected:
-                self.chatView.text = self.chatView.text + "\(peerID.displayName) connected"
-            case MCSessionState.Connecting:
-                self.chatView.text = self.chatView.text + "\(peerID.displayName) connecting"
-            case MCSessionState.NotConnected:
-                self.chatView.text = self.chatView.text + "\(peerID.displayName) not connected"
+            case MCSessionState.Connected: break
+                //self.chatView.text = self.chatView.text + "\(peerID.displayName) connected\n"
+            case MCSessionState.Connecting: break
+                //self.chatView.text = self.chatView.text + "\(peerID.displayName) connecting\n"
+            case MCSessionState.NotConnected: break
+                //self.chatView.text = self.chatView.text + "\(peerID.displayName) not connected\n"
             }
     }
 }
