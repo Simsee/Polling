@@ -128,9 +128,9 @@ MCSessionDelegate {
     // Found peer
     func browser(browser: MCNearbyServiceBrowser, foundPeer peerID: MCPeerID, withDiscoveryInfo info: [String : String]?) {
         browser.invitePeer(peerID, toSession: session, withContext: nil, timeout: 10)
+        
         dispatch_async(dispatch_get_main_queue()) {
-            self.chatView.text = self.chatView.text + "\(peerID.displayName) connected\nAll peers: " +
-                String(self.session.connectedPeers) + "\n"
+            self.chatView.text = self.chatView.text + "\(peerID.displayName) connected\n"
         }
     }
     
@@ -141,6 +141,14 @@ MCSessionDelegate {
                 foundPeers.removeAtIndex(index)
                 break
             }
+        }
+        if triggeredDevices != nil && triggeredDevices.contains(peerID){
+            triggeredDevices.removeAtIndex(triggeredDevices.indexOf(peerID)!)
+            
+            dispatch_async(dispatch_get_main_queue()) {
+                self.chatView.text = self.chatView.text + "\(peerID.displayName) disconnected\n"
+            }
+            self.numTriggeredDevices.text = String(self.triggeredDevices.count)
         }
     }
     
@@ -168,10 +176,10 @@ MCSessionDelegate {
                 
                 else if (msg == self.ARE_YOU_TRIGGERED){
                     if (self.triggered){
-                        self.sendMessageToPeers(self.AM_TRIGGERED, peers: [peerID])
+                        self.sendMessageToPeers(self.AM_TRIGGERED, peers: self.session.connectedPeers)
                     }
                     else {
-                        self.sendMessageToPeers(self.NOT_TRIGGERED, peers: [peerID])
+                        self.sendMessageToPeers(self.NOT_TRIGGERED, peers: self.session.connectedPeers)
                     }
                     if (self.triggeredDevices != nil && !self.triggeredDevices.contains(peerID)){
                         self.triggeredDevices.append(peerID)
